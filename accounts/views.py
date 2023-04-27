@@ -1,31 +1,31 @@
-from django.shortcuts import get_object_or_404
-from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from django.contrib.auth import authenticate, logout
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import EmailMessage
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.db.models import Q
 from django.template.loader import render_to_string
-from django.urls import reverse
-from django.utils import timezone
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.utils.encoding import force_bytes
+from django.contrib.auth import authenticate, logout
 from django.utils.http import urlsafe_base64_encode
-from drf_yasg import openapi
-from drf_yasg.utils import swagger_auto_schema
-from rest_framework import generics, status, permissions
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.response import Response
-from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+from django.core.mail import EmailMessage
+from django.db.models import Q
+from django.utils import timezone
+from django.urls import reverse
 from django.conf import settings
 from django.http import Http404
-from rest_framework.permissions import IsAdminUser
-from rest_framework_simplejwt.tokens import RefreshToken
-
-from . import models
-from . import serializers
-
 from django.db import IntegrityError
+
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
+from rest_framework import generics, status, permissions
+
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
+from . import serializers
+from . import models
 
 
 Get_response_schema = {
@@ -108,7 +108,6 @@ class UserSearchView(APIView):
 
 
 class UserListCreateView(APIView):
-    permission_classes = [IsAdminUser]
     authentication_classes = [JWTAuthentication]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -122,9 +121,12 @@ class UserListCreateView(APIView):
 
     @swagger_auto_schema(responses=Get_response_schema)
     def get(self, request, pk):
-        user = self.get_object(pk)
-        serializer = serializers.UserSerializer(user, context={'request': request})
-        return Response(serializer.data)
+        if request.user.is_staff:
+            user = self.get_object(pk)
+            serializer = serializers.UserSerializer(user, context={'request': request})
+            return Response(serializer.data)
+        else:
+            return Response(status=status.HTTP_403_FORBIDDEN)
 
 
 class ResetPasswordView(generics.GenericAPIView):
@@ -360,28 +362,30 @@ class UserUpdateView(APIView):
 
 
 class UpdateUserAdminStatusView(APIView):
-    permission_classes = [IsAdminUser]
     authentication_classes = [JWTAuthentication]
 
     @swagger_auto_schema(
         responses=Edit_response_schema,
     )
     def post(self, request, pk):
-        request.data.get('user_id')
-        if not pk:
-            return Response({'error': 'User ID not provided.'}, status=400)
+        if request.user.is_staff:
+            request.data.get('user_id')
+            if not pk:
+                return Response({'error': 'User ID not provided.'}, status=400)
 
-        try:
-            user = models.User.objects.get(id=pk)
-        except models.User.DoesNotExist:
-            return Response({'error': 'User not found.'}, status=404)
+            try:
+                user = models.User.objects.get(id=pk)
+            except models.User.DoesNotExist:
+                return Response({'error': 'User not found.'}, status=404)
 
-        user.is_admin = True
-        user.is_staff = True
-        user.is_superuser = True
-        user.save()
+            user.is_admin = True
+            user.is_staff = True
+            user.is_superuser = True
+            user.save()
 
-        return Response({'success': f'{user.username} has been granted admin privileges.'})
+            return Response({'success': f'{user.username} has been granted admin privileges.'})
+        else:
+            return Response(status=status.HTTP_403_FORBIDDEN)
 
 
 class CreateUserView(APIView):
@@ -679,7 +683,6 @@ class FriendRequestUpdateAPIView(APIView):
                 raise PermissionDenied("You are not allowed to update this friend request.")
 
             if accepted:
-                # Add users to friends
                 friendship1 = models.Friendship.objects.create(
                     from_user=friend_request.from_user,
                     to_user=friend_request.to_user,

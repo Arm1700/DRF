@@ -1,19 +1,22 @@
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from .models import Post, PostImage
-from .serializers import PostSerializer, PostImageSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
+from rest_framework import status
+
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from django.shortcuts import get_object_or_404, get_list_or_404
+from django.shortcuts import get_object_or_404
 from django.db.models import Q
+from django.http import Http404
+
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from django.http import Http404
+
+from .serializers import PostSerializer
+from .models import Post, PostImage
+
 import os
-from django.contrib.sessions.backends.base import SessionBase
+
 
 Get_response_schema = {
     status.HTTP_200_OK: openapi.Response('OK')
@@ -146,7 +149,6 @@ class PostListCreateView(APIView):
 
 
 class PostGetOnePostView(APIView):
-    permission_classes = [IsAdminUser]
     authentication_classes = [JWTAuthentication]
 
     def get_object(self, pk):
@@ -159,9 +161,12 @@ class PostGetOnePostView(APIView):
 
     @swagger_auto_schema(responses=Get_response_schema)
     def get(self, request, pk):
-        post = self.get_object(pk)
-        serializer = PostSerializer(post)
-        return Response(serializer.data)
+        if request.user.is_staff:
+            post = self.get_object(pk)
+            serializer = PostSerializer(post)
+            return Response(serializer.data)
+        else:
+            return Response(status=status.HTTP_403_FORBIDDEN)
 
 
 class PostDetailView(APIView):
