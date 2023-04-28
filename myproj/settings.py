@@ -166,14 +166,15 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
-ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 2
+# ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 2
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'bukboks1@gmail.com'
-EMAIL_HOST_PASSWORD = 'rcdevdxmvhnbooxl'
+EMAIL_HOST_PASSWORD = 'zgdborfosuzodqmq'
+# https://myaccount.google.com/apppasswords
 
 
 LOGIN_REDIRECT_URL = 'schema-swagger-ui'

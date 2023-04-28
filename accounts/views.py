@@ -130,7 +130,7 @@ class UserListCreateView(APIView):
 
 
 class ResetPasswordView(generics.GenericAPIView):
-    permission_classes = [permissions.AllowAny]
+    # permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser]
     serializer_class = serializers.ResetPasswordSerializer
 
@@ -183,8 +183,12 @@ class ResetPasswordView(generics.GenericAPIView):
             from_email,
             [to_email],
         )
+
         email.content_subtype = 'html'
+        print('b')
+
         email.send()
+        print('d')
 
         return Response({'message': 'Password reset instructions sent', 'password_reset_url': password_reset_url},
                         status=status.HTTP_200_OK)
