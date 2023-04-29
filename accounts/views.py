@@ -13,8 +13,13 @@ from django.conf import settings
 from django.http import Http404
 from django.db import IntegrityError
 
+from datetime import datetime, timedelta
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -474,6 +479,59 @@ class CreateUserView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# class LoginView(APIView):
+#     permission_classes = [permissions.AllowAny]
+#     parser_classes = [MultiPartParser, FormParser]
+#
+#     @swagger_auto_schema(
+#         manual_parameters=[
+#             openapi.Parameter(
+#                 'email',
+#                 openapi.IN_FORM,
+#                 type=openapi.TYPE_STRING,
+#                 description='email',
+#                 required=True,
+#                 default='example@example.com',
+#             ),
+#             openapi.Parameter(
+#                 'password',
+#                 openapi.IN_FORM,
+#                 type=openapi.TYPE_STRING,
+#                 description='password',
+#                 required=True,
+#                 default='Example_password1',
+#             ),
+#         ],
+#         responses={
+#             200: openapi.Response("Login successful."),
+#             401: openapi.Response("Invalid credentials."),
+#         },
+#         operation_description="User login",
+#         operation_summary="User login",
+#     )
+#     def post(self, request):
+#         email = request.data.get('email')
+#         password = request.data.get('password')
+#         user = authenticate(request, email=email, password=password)
+#         if user is not None:
+#             # Check if there's an existing refresh token and delete it
+#             try:
+#                 refresh_token = models.RefreshTokenModel.objects.get(user=user)
+#                 refresh_token.delete()
+#             except models.RefreshTokenModel.DoesNotExist:
+#                 pass
+#             # Create a new refresh token for the user
+#             refresh = RefreshToken.for_user(user)
+#             # Save the new refresh token to the database
+#             models.RefreshTokenModel.objects.create(user=user, token=str(refresh))
+#             return Response({
+#                 'detail': 'Login successful.',
+#                 'access_token': str(refresh.access_token),
+#                 'refresh_token': str(refresh),
+#             }, status=status.HTTP_200_OK)
+#         else:
+#             return Response({'error': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
+
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser]
@@ -509,19 +567,106 @@ class LoginView(APIView):
         password = request.data.get('password')
         user = authenticate(request, email=email, password=password)
         if user is not None:
-            # login(request, user)
+            # Check if there's an existing refresh token and delete it
+            try:
+                refresh_token = models.RefreshTokenModel.objects.get(user=user)
+                refresh_token.delete()
+            except models.RefreshTokenModel.DoesNotExist:
+                pass
+            # Create a new refresh token for the user
             refresh = RefreshToken.for_user(user)
-            return Response({
+            # Save the new refresh token to the database
+            models.RefreshTokenModel.objects.create(user=user, token=str(refresh))
+            # Set the access token as a cookie
+            access_token = str(refresh.access_token)
+            access_refresh = str(refresh)
+            expires = datetime.now() + timedelta(seconds=settings.SESSION_COOKIE_AGE)
+            response = Response({
                 'detail': 'Login successful.',
-                'access_token': str(refresh.access_token),
-                'refresh_token': str(refresh),
+                'access_token': access_token,
+                'access_refresh': access_refresh,
             }, status=status.HTTP_200_OK)
+            response.set_cookie('access_token', access_token, expires=expires, secure=True, httponly=True, samesite='Strict')
+            return response
         else:
             return Response({'error': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
+class RefreshTokenView(TokenRefreshView):
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'refresh',
+                openapi.IN_FORM,
+                type=openapi.TYPE_STRING,
+                description='refresh_token',
+                required=True,
+            ),
+        ],
+        responses={
+            200: openapi.Response("Token refreshed."),
+            400: openapi.Response("Token not valid or expired."),
+        },
+        operation_description="Token refresh",
+        operation_summary="Token refresh",
+    )
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get('refresh')
+
+        try:
+            refresh_token_model = models.RefreshTokenModel.objects.get(token=refresh_token)
+            user = refresh_token_model.user
+        except models.RefreshTokenModel.DoesNotExist:
+            return Response({'error': 'Invalid refresh token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.is_active:
+            return Response({'error': 'User account is disabled.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        new_token = serializer.validated_data['access']
+        return Response({'access_token': new_token})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class VerifyTokenView(APIView):
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'refresh',
+                openapi.IN_FORM,
+                type=openapi.TYPE_STRING,
+                description='Refresh token',
+                required=True,
+            ),
+        ],
+        responses={
+            200: openapi.Response("Token verified successfully."),
+            400: openapi.Response("Invalid token."),
+        },
+        operation_description="Verify refresh token",
+        operation_summary="Verify refresh token",
+    )
+    def post(self, request):
+        refresh_token = request.data.get('refresh')
+        if refresh_token:
+            try:
+                token = models.RefreshTokenModel.objects.get(token=refresh_token)
+                token.verify()
+                return Response({'detail': 'Token verified successfully.'}, status=status.HTTP_200_OK)
+            except models.RefreshTokenModel.DoesNotExist:
+                pass
+        return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class LogoutView(APIView):
-    # permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
     @swagger_auto_schema(
@@ -534,8 +679,17 @@ class LogoutView(APIView):
     )
     def post(self, request):
         if request.user.is_authenticated:
-            logout(request)
-            return Response({'detail': 'Logout successful.'}, status=status.HTTP_200_OK)
+            user = request.user
+
+            # delete refresh token
+            models.RefreshTokenModel.objects.filter(user=user).delete()
+
+            # delete access token cookie
+            response = Response({'detail': 'Logout successful.'}, status=status.HTTP_200_OK)
+            response.delete_cookie('access_token')
+            response.delete_cookie('refresh_token')
+
+            return response
         else:
             return Response({'error': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
 

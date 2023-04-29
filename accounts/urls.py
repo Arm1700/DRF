@@ -20,4 +20,6 @@ urlpatterns = [
     path('friend-requests/my-friends/', views.FriendListAPIView.as_view()),
     path('friend-requests/<int:pk>/', views.FriendRequestUpdateAPIView.as_view()),
     path('friend-requests/create/', views.FriendRequestCreateAPIView.as_view()),
+    path('api/token/refresh/', views.RefreshTokenView.as_view(), name='token_refresh'),
+    path('api/token/verify/', views.VerifyTokenView.as_view(), name='token_verify'),
 ]

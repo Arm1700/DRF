@@ -1,9 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser
 from rest_framework.exceptions import ValidationError
-
+from datetime import datetime, timedelta
+from django.utils import timezone
 from .managers import CustomUserManager
-from rest_framework_simplejwt.tokens import RefreshToken
 
 
 class User(AbstractBaseUser):
@@ -34,10 +34,18 @@ class User(AbstractBaseUser):
     def has_module_perms(app_label):
         return True
 
-    @property
-    def token(self):
-        token = RefreshToken.for_user(self)
-        return str(token.access_token)
+
+class RefreshTokenModel(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Refresh token for {self.user.username}"
+
+    def verify(self):
+        if timezone.now() > self.created_at + timedelta(days=7):
+            raise ValueError("Token has expired.")
 
 
 class FriendRequest(models.Model):
