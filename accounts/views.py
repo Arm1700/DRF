@@ -2,7 +2,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.template.loader import render_to_string
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.utils.encoding import force_bytes
-from django.contrib.auth import authenticate, logout
+from django.contrib.auth import authenticate
 from django.utils.http import urlsafe_base64_encode
 from django.shortcuts import get_object_or_404
 from django.core.mail import EmailMessage
@@ -479,119 +479,6 @@ class CreateUserView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# class LoginView(APIView):
-#     permission_classes = [permissions.AllowAny]
-#     parser_classes = [MultiPartParser, FormParser]
-#
-#     @swagger_auto_schema(
-#         manual_parameters=[
-#             openapi.Parameter(
-#                 'email',
-#                 openapi.IN_FORM,
-#                 type=openapi.TYPE_STRING,
-#                 description='email',
-#                 required=True,
-#                 default='example@example.com',
-#             ),
-#             openapi.Parameter(
-#                 'password',
-#                 openapi.IN_FORM,
-#                 type=openapi.TYPE_STRING,
-#                 description='password',
-#                 required=True,
-#                 default='Example_password1',
-#             ),
-#         ],
-#         responses={
-#             200: openapi.Response("Login successful."),
-#             401: openapi.Response("Invalid credentials."),
-#         },
-#         operation_description="User login",
-#         operation_summary="User login",
-#     )
-#     def post(self, request):
-#         email = request.data.get('email')
-#         password = request.data.get('password')
-#         user = authenticate(request, email=email, password=password)
-#         if user is not None:
-#             # Check if there's an existing refresh token and delete it
-#             try:
-#                 refresh_token = models.RefreshTokenModel.objects.get(user=user)
-#                 refresh_token.delete()
-#             except models.RefreshTokenModel.DoesNotExist:
-#                 pass
-#             # Create a new refresh token for the user
-#             refresh = RefreshToken.for_user(user)
-#             # Save the new refresh token to the database
-#             models.RefreshTokenModel.objects.create(user=user, token=str(refresh))
-#             return Response({
-#                 'detail': 'Login successful.',
-#                 'access_token': str(refresh.access_token),
-#                 'refresh_token': str(refresh),
-#             }, status=status.HTTP_200_OK)
-#         else:
-#             return Response({'error': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
-
-class LoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-    parser_classes = [MultiPartParser, FormParser]
-
-    @swagger_auto_schema(
-        manual_parameters=[
-            openapi.Parameter(
-                'email',
-                openapi.IN_FORM,
-                type=openapi.TYPE_STRING,
-                description='email',
-                required=True,
-                default='example@example.com',
-            ),
-            openapi.Parameter(
-                'password',
-                openapi.IN_FORM,
-                type=openapi.TYPE_STRING,
-                description='password',
-                required=True,
-                default='Example_password1',
-            ),
-        ],
-        responses={
-            200: openapi.Response("Login successful."),
-            401: openapi.Response("Invalid credentials."),
-        },
-        operation_description="User login",
-        operation_summary="User login",
-    )
-    def post(self, request):
-        email = request.data.get('email')
-        password = request.data.get('password')
-        user = authenticate(request, email=email, password=password)
-        if user is not None:
-            # Check if there's an existing refresh token and delete it
-            try:
-                refresh_token = models.RefreshTokenModel.objects.get(user=user)
-                refresh_token.delete()
-            except models.RefreshTokenModel.DoesNotExist:
-                pass
-            # Create a new refresh token for the user
-            refresh = RefreshToken.for_user(user)
-            # Save the new refresh token to the database
-            models.RefreshTokenModel.objects.create(user=user, token=str(refresh))
-            # Set the access token as a cookie
-            access_token = str(refresh.access_token)
-            access_refresh = str(refresh)
-            expires = datetime.now() + timedelta(seconds=settings.SESSION_COOKIE_AGE)
-            response = Response({
-                'detail': 'Login successful.',
-                'access_token': access_token,
-                'access_refresh': access_refresh,
-            }, status=status.HTTP_200_OK)
-            response.set_cookie('access_token', access_token, expires=expires, secure=True, httponly=True, samesite='Strict')
-            return response
-        else:
-            return Response({'error': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
-
-
 class RefreshTokenView(TokenRefreshView):
     permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser]
@@ -664,6 +551,65 @@ class VerifyTokenView(APIView):
             except models.RefreshTokenModel.DoesNotExist:
                 pass
         return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'email',
+                openapi.IN_FORM,
+                type=openapi.TYPE_STRING,
+                description='email',
+                required=True,
+                default='example@example.com',
+            ),
+            openapi.Parameter(
+                'password',
+                openapi.IN_FORM,
+                type=openapi.TYPE_STRING,
+                description='password',
+                required=True,
+                default='Example_password1',
+            ),
+        ],
+        responses={
+            200: openapi.Response("Login successful."),
+            401: openapi.Response("Invalid credentials."),
+        },
+        operation_description="User login",
+        operation_summary="User login",
+    )
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        user = authenticate(request, email=email, password=password)
+        if user is not None:
+            try:
+                refresh_token = models.RefreshTokenModel.objects.get(user=user)
+                refresh_token.delete()
+            except models.RefreshTokenModel.DoesNotExist:
+                pass
+
+            refresh = RefreshToken.for_user(user)
+
+            models.RefreshTokenModel.objects.create(user=user, token=str(refresh))
+
+            access_token = str(refresh.access_token)
+            access_refresh = str(refresh)
+            expires = datetime.now() + timedelta(seconds=settings.SESSION_COOKIE_AGE)
+            response = Response({
+                'detail': 'Login successful.',
+                'access_token': access_token,
+                'access_refresh': access_refresh,
+            }, status=status.HTTP_200_OK)
+            response.set_cookie('access_token', access_token, expires=expires, secure=True, httponly=True, samesite='Strict')
+            return response
+        else:
+            return Response({'error': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class LogoutView(APIView):

@@ -237,7 +237,7 @@ class PostDetailView(APIView):
                         return Response({'error': 'Maximum number of images for this post has been reached'},
                                         status=status.HTTP_400_BAD_REQUEST)
 
-                    post_image = PostImage.objects.create(image_post=post, image=image)
+                    PostImage.objects.create(image_post=post, image=image)
                     serializer = PostSerializer(post)
                     return Response(serializer.data)
 

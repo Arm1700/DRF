@@ -41,7 +41,7 @@ class RefreshTokenModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Refresh token for {self.user.username}"
+        return f"Refresh token for {self.user.username} id {self.user.id}"
 
     def verify(self):
         if timezone.now() > self.created_at + timedelta(days=7):
