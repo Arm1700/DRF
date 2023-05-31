@@ -192,5 +192,3 @@ class FriendshipSerializer(serializers.ModelSerializer):
             return obj.to_user.friend_requests_received.get(from_user=obj.from_user).accepted
         except models.FriendRequest.DoesNotExist:
             return False
-
-

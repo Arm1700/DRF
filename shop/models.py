@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 
 User = get_user_model()
 
@@ -30,11 +31,17 @@ class Post(models.Model):
             return True
 
 
+def validate_image_file_extension(value):
+    ext = value.name.split('.')[-1].lower()
+    if ext not in ['jpg', 'jpeg', 'png']:
+        raise ValidationError("Unsupported file extension.")
+
+
 class PostImage(models.Model):
     DoesNotExist = None
     objects = None
     image_post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='img', default='', null=True, blank=True)
+    image = models.ImageField(upload_to='img', default='', null=True, blank=True, validators=[validate_image_file_extension])
 
     def __str__(self):
         return f"Image by {self.image_post.user.username} id {self.image_post.user.id} for post {self.image_post.id} with id {self.id}"

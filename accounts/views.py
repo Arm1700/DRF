@@ -112,7 +112,7 @@ class UserSearchView(APIView):
         })
 
 
-class UserListCreateView(APIView):
+class GetUserOneView(APIView):
     authentication_classes = [JWTAuthentication]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -190,10 +190,8 @@ class ResetPasswordView(generics.GenericAPIView):
         )
 
         email.content_subtype = 'html'
-        print('b')
 
         email.send()
-        print('d')
 
         return Response({'message': 'Password reset instructions sent', 'password_reset_url': password_reset_url},
                         status=status.HTTP_200_OK)
